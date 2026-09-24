@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Show toolchain
+        run: xcodebuild -version && swift --version
+
+      - name: Build (ad-hoc signed)
+        run: |
+          xcodegen generate
+          xcodebuild -project Headroom.xcodeproj -scheme Headroom -configuration Release \
+            -derivedDataPath build build
+
+      - name: Check the bundle
+        run: |
+          APP=build/Build/Products/Release/Headroom.app
+          test -x "$APP/Contents/MacOS/Headroom"
+          test -x "$APP/Contents/MacOS/headroom-statusline"
+          codesign --verify --deep --strict "$APP"
+          # The status line helper must cope with empty and invalid input.
+          echo '{}' | "$APP/Contents/MacOS/headroom-statusline"
+          echo 'not json' | "$APP/Contents/MacOS/headroom-statusline"

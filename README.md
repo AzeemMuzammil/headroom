@@ -47,6 +47,10 @@ Works in light and dark mode. Chart colors come from a palette checked for color
 
 ## Install
 
+**Download:** grab the latest `Headroom-x.y.z.zip` from [Releases](https://github.com/AzeemMuzammil/headroom/releases), unzip it, and move **Headroom.app** to Applications. Release builds aren't notarized by Apple, so the first time you open it, go to **System Settings → Privacy & Security** and click **Open Anyway**.
+
+**Or build from source:**
+
 ```sh
 git clone https://github.com/AzeemMuzammil/headroom.git
 cd headroom

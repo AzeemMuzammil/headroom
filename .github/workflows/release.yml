@@ -1,0 +1,91 @@
+name: Release
+
+# Run manually from the Actions tab: "Release" → "Run workflow" on main, with a version like 1.2.0.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 1.2.0)"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark as a pre-release"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: macos-26
+    timeout-minutes: 30
+    if: github.ref == 'refs/heads/main'
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Validate version
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must look like 1.2.0 (got '$VERSION')"; exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::Tag v$VERSION already exists"; exit 1
+          fi
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Build (ad-hoc signed)
+        run: |
+          xcodegen generate
+          xcodebuild -project Headroom.xcodeproj -scheme Headroom -configuration Release \
+            -derivedDataPath build \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            build
+
+      - name: Package
+        run: |
+          APP=build/Build/Products/Release/Headroom.app
+          codesign --verify --deep --strict "$APP"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")" = "$VERSION"
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "dist/Headroom-$VERSION.zip"
+          (cd dist && shasum -a 256 "Headroom-$VERSION.zip" > "Headroom-$VERSION.zip.sha256")
+          cat dist/*.sha256
+
+      - name: Write release notes
+        run: |
+          cat > notes.md <<NOTES
+          ## Install
+
+          1. Download **Headroom-$VERSION.zip** below, unzip it, and move **Headroom.app** to your Applications folder.
+          2. Open it. Headroom isn't notarized by Apple, so the first time macOS says it can't verify the developer:
+             open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
+             (Or run \`xattr -dr com.apple.quarantine /Applications/Headroom.app\` in Terminal.)
+          3. Pick how Headroom gets your plan limits. See the [README](https://github.com/${{ github.repository }}#install).
+
+          **Updating:** quit Headroom, replace the app in Applications, and open it again. If you use "Through Claude Code", keep it at the same path so Claude Code's status line keeps working.
+
+          Requires macOS 26 or later. SHA-256: \`$(cut -d' ' -f1 "dist/Headroom-$VERSION.zip.sha256")\`
+          NOTES
+
+      - name: Publish release
+        run: |
+          gh release create "v$VERSION" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "Headroom $VERSION" \
+            --notes-file notes.md \
+            --generate-notes \
+            ${{ inputs.prerelease && '--prerelease' || '' }}
