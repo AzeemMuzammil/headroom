@@ -19,6 +19,16 @@ Open an [issue](https://github.com/AzeemMuzammil/headroom/issues/new/choose) usi
 
 `main` is protected: every change goes through a pull request, and PRs are squash-merged.
 
+Every pull request is built by CI on a macOS runner (`.github/workflows/ci.yml`), and it has to pass before merging.
+
+## Releasing (maintainers)
+
+1. Merge the changes into `main`.
+2. In **Actions → Release → Run workflow**, keep the branch on `main` and enter the new version (e.g. `1.2.0`).
+3. The workflow builds the app with that version, zips it, tags `v1.2.0` and publishes a GitHub Release. The notes are generated from the merged PRs, with install instructions added.
+
+Release builds are ad-hoc signed, not notarized.
+
 ## Guidelines
 
 - **Match the surrounding code:** SwiftUI, Swift Charts, no third-party dependencies.
