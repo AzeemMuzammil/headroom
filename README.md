@@ -154,6 +154,10 @@ swift scripts/make_icon.swift            # regenerate the app icon
 
 **If Direct mode shows "The usage API changed":** Settings → **Copy Last API Response** copies the raw JSON, and [`App/Services/UsageAPI.swift`](App/Services/UsageAPI.swift) is the parser to update.
 
+## Contributing
+
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md), and report security problems privately as described in [SECURITY.md](SECURITY.md).
+
 ## License
 
 [MIT](LICENSE)

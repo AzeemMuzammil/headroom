@@ -1,0 +1,47 @@
+name: Bug report
+description: Something isn't working as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please don't paste tokens, API keys or anything from `~/.claude/.credentials.json`.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead? Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Plan limits mode
+      options:
+        - Through Claude Code
+        - Direct
+        - Off
+        - Not set up yet
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: macOS version, Headroom version (Settings), and `claude --version`
+      placeholder: macOS 26.1, Headroom 1.0.0, Claude Code 2.1.281
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: API response (Direct mode, if "The usage API changed")
+      description: Settings → Copy Last API Response. It contains usage figures only, no credentials.
+      render: json
