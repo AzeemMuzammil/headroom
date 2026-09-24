@@ -27,7 +27,21 @@ Every pull request is built by CI on a macOS runner (`.github/workflows/ci.yml`)
 2. In **Actions → Release → Run workflow**, keep the branch on `main` and enter the new version (e.g. `1.2.0`).
 3. The workflow builds the app with that version, zips it, tags `v1.2.0` and publishes a GitHub Release. The notes are generated from the merged PRs, with install instructions added.
 
-Release builds are ad-hoc signed, not notarized.
+### Signing and notarization
+
+Releases are signed with a Developer ID certificate and notarized by Apple when these are configured in **Settings → Secrets and variables → Actions**. Without them, releases are ad-hoc signed and users have to click "Open Anyway".
+
+| Name | Kind | Value |
+|---|---|---|
+| `MACOS_CERTIFICATE_P12` | secret | Base64 of the "Developer ID Application" certificate exported as .p12 |
+| `MACOS_CERTIFICATE_PASSWORD` | secret | The .p12 export password |
+| `NOTARY_API_KEY_P8` | secret | Base64 of an App Store Connect API key (.p8) with Developer access |
+| `NOTARY_API_KEY_ID` | secret | That key's ID |
+| `NOTARY_API_ISSUER_ID` | secret | The Issuer ID shown above the API keys list |
+| `APPLE_TEAM_ID` | variable | The team ID of the certificate |
+| `RELEASE_BUNDLE_ID` | variable | The bundle ID for release builds |
+
+Signed builds use the hardened runtime and a secure timestamp. The workflow imports the certificate into a temporary keychain and deletes it at the end.
 
 ## Guidelines
 

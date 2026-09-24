@@ -1,6 +1,9 @@
 name: Release
 
 # Run manually from the Actions tab: "Release" → "Run workflow" on main, with a version like 1.2.0.
+#
+# With the signing secrets set (see CONTRIBUTING.md → "Signing and notarization"), the app is signed
+# with a Developer ID certificate and notarized by Apple. Without them it's ad-hoc signed.
 on:
   workflow_dispatch:
     inputs:
@@ -25,11 +28,15 @@ jobs:
   release:
     name: Build and publish
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 45
     if: github.ref == 'refs/heads/main'
     env:
       VERSION: ${{ inputs.version }}
       GH_TOKEN: ${{ github.token }}
+      APP: build/Build/Products/Release/Headroom.app
+      # Secrets can't be tested in `if:` directly, so expose whether signing is configured.
+      SIGNED: ${{ secrets.MACOS_CERTIFICATE_P12 != '' && secrets.NOTARY_API_KEY_P8 != '' }}
+      KEYCHAIN: ${{ github.workspace }}/signing.keychain-db
     steps:
       - uses: actions/checkout@v5
         with:
@@ -43,23 +50,79 @@ jobs:
           if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
             echo "::error::Tag v$VERSION already exists"; exit 1
           fi
+          echo "Signed and notarized: $SIGNED"
 
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Build (ad-hoc signed)
+      - name: Import the Developer ID certificate
+        if: env.SIGNED == 'true'
+        env:
+          CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          # Put our keychain first in the search list, keeping the existing ones.
+          EXISTING=()
+          while IFS= read -r k; do EXISTING+=("$(echo "$k" | tr -d '" ')"); done < <(security list-keychains -d user)
+          security list-keychains -d user -s "$KEYCHAIN" "${EXISTING[@]}"
+          rm "$RUNNER_TEMP/certificate.p12"
+          security find-identity -v -p codesigning "$KEYCHAIN" | grep -q "Developer ID Application" \
+            || { echo "::error::No Developer ID Application identity in the certificate"; exit 1; }
+
+      - name: Build
+        env:
+          TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          BUNDLE_ID: ${{ vars.RELEASE_BUNDLE_ID }}
         run: |
           xcodegen generate
+          SIGNING=()
+          if [[ "$SIGNED" == "true" ]]; then
+            : "${TEAM_ID:?Set the APPLE_TEAM_ID repository variable}"
+            : "${BUNDLE_ID:?Set the RELEASE_BUNDLE_ID repository variable}"
+            # Developer ID + hardened runtime + secure timestamp are what notarization requires.
+            SIGNING=(CODE_SIGN_STYLE=Manual "CODE_SIGN_IDENTITY=Developer ID Application" DEVELOPMENT_TEAM="$TEAM_ID"
+                     PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" ENABLE_HARDENED_RUNTIME=YES
+                     CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO "OTHER_CODE_SIGN_FLAGS=--timestamp --keychain $KEYCHAIN")
+          fi
           xcodebuild -project Headroom.xcodeproj -scheme Headroom -configuration Release \
             -derivedDataPath build \
             MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            build
+            "${SIGNING[@]}" build
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")" = "$VERSION"
+
+      - name: Notarize and staple
+        if: env.SIGNED == 'true'
+        env:
+          API_KEY_P8: ${{ secrets.NOTARY_API_KEY_P8 }}
+          API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.NOTARY_API_ISSUER_ID }}
+        run: |
+          KEY="$RUNNER_TEMP/notary.p8"
+          echo "$API_KEY_P8" | base64 --decode > "$KEY"
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/notarize.zip"
+          if ! xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --key "$KEY" --key-id "$API_KEY_ID" \
+                 --issuer "$API_ISSUER_ID" --wait --timeout 30m --output-format json > "$RUNNER_TEMP/notary.json"; then
+            cat "$RUNNER_TEMP/notary.json"
+            ID=$(plutil -extract id raw "$RUNNER_TEMP/notary.json" 2>/dev/null || true)
+            [[ -n "$ID" ]] && xcrun notarytool log "$ID" --key "$KEY" --key-id "$API_KEY_ID" --issuer "$API_ISSUER_ID"
+            rm -f "$KEY"; exit 1
+          fi
+          cat "$RUNNER_TEMP/notary.json"
+          rm -f "$KEY"
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          spctl --assess --type execute --verbose=2 "$APP"
 
       - name: Package
         run: |
-          APP=build/Build/Products/Release/Headroom.app
-          codesign --verify --deep --strict "$APP"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")" = "$VERSION"
           mkdir -p dist
           ditto -c -k --sequesterRsrc --keepParent "$APP" "dist/Headroom-$VERSION.zip"
           (cd dist && shasum -a 256 "Headroom-$VERSION.zip" > "Headroom-$VERSION.zip.sha256")
@@ -67,18 +130,22 @@ jobs:
 
       - name: Write release notes
         run: |
+          SHA="$(cut -d' ' -f1 "dist/Headroom-$VERSION.zip.sha256")"
+          if [[ "$SIGNED" == "true" ]]; then
+            OPEN_STEP="2. Open it. It's signed and notarized by Apple, so it opens like any other app."
+          else
+            OPEN_STEP="2. Open it. This build isn't notarized, so the first time macOS says it can't verify the developer: open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**."
+          fi
           cat > notes.md <<NOTES
           ## Install
 
           1. Download **Headroom-$VERSION.zip** below, unzip it, and move **Headroom.app** to your Applications folder.
-          2. Open it. Headroom isn't notarized by Apple, so the first time macOS says it can't verify the developer:
-             open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
-             (Or run \`xattr -dr com.apple.quarantine /Applications/Headroom.app\` in Terminal.)
+          $OPEN_STEP
           3. Pick how Headroom gets your plan limits. See the [README](https://github.com/${{ github.repository }}#install).
 
           **Updating:** quit Headroom, replace the app in Applications, and open it again. If you use "Through Claude Code", keep it at the same path so Claude Code's status line keeps working.
 
-          Requires macOS 26 or later. SHA-256: \`$(cut -d' ' -f1 "dist/Headroom-$VERSION.zip.sha256")\`
+          Requires macOS 26 or later. SHA-256: \`$SHA\`
           NOTES
 
       - name: Publish release
@@ -89,3 +156,7 @@ jobs:
             --notes-file notes.md \
             --generate-notes \
             ${{ inputs.prerelease && '--prerelease' || '' }}
+
+      - name: Remove the signing keychain
+        if: always() && env.SIGNED == 'true'
+        run: security delete-keychain "$KEYCHAIN" || true
