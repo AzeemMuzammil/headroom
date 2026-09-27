@@ -21,13 +21,29 @@ struct SetupView: View {
 
             HStack(alignment: .top, spacing: 14) {
                 OptionCard(
+                    symbol: "bolt.horizontal",
+                    title: "Direct",
+                    badge: "Default",
+                    points: [
+                        "Reads Claude Code's saved login with macOS's security tool and asks Anthropic for your limits. No keychain prompts.",
+                        "Shows everything: session, weekly and model-specific limits, the weekly breakdown and your plan.",
+                        "Updates every few minutes, even when Claude Code is closed.",
+                    ],
+                    warning: "Anthropic's terms say third-party apps shouldn't use Claude Code's login, and the endpoint is undocumented and may change. Use at your own risk.",
+                    action: "Use Direct Mode"
+                ) {
+                    model.limitsSource = .direct
+                    Task { await model.refresh(force: true) }
+                }
+
+                OptionCard(
                     symbol: "terminal",
                     title: "Through Claude Code",
-                    badge: "Recommended",
+                    badge: nil,
                     points: [
                         "Claude Code passes your session and weekly limits to Headroom through its status line.",
-                        "Headroom never touches your login and sends nothing over the network.",
-                        "Limits update while you use Claude Code.",
+                        "Never touches your login and sends nothing over the network.",
+                        "Updates while you use Claude Code. No model-specific limits or weekly breakdown.",
                         "Adds a status line entry to ~/.claude/settings.json. An existing status line keeps working, and a backup is saved.",
                     ],
                     warning: nil,
@@ -35,22 +51,6 @@ struct SetupView: View {
                 ) {
                     // Only leave setup once Claude Code is actually connected.
                     if model.installBridge() { model.limitsSource = .claudeCode }
-                }
-
-                OptionCard(
-                    symbol: "key",
-                    title: "Direct",
-                    badge: nil,
-                    points: [
-                        "Reads Claude Code's saved login from your keychain and asks Anthropic for your limits.",
-                        "Adds model-specific limits and the weekly breakdown, and updates even when Claude Code is closed.",
-                        "macOS asks once for keychain access.",
-                    ],
-                    warning: "Anthropic's terms say third-party apps shouldn't use Claude Code's login. The endpoint is undocumented and may change. Use at your own risk.",
-                    action: "Use Direct Mode"
-                ) {
-                    model.limitsSource = .direct
-                    Task { await model.refresh(force: true) }
                 }
             }
             .fixedSize(horizontal: false, vertical: true)

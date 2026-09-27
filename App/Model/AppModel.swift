@@ -19,7 +19,7 @@ enum MenuBarStyle: String, CaseIterable, Identifiable {
 enum LimitsSource: String, CaseIterable, Identifiable {
     /// Claude Code's status line hands us the limits — the approved way. No login, no network.
     case claudeCode
-    /// Reads Claude Code's saved login and calls Anthropic's usage endpoint directly.
+    /// Reads Claude Code's saved login (via /usr/bin/security) and calls Anthropic's usage endpoint.
     case direct
     /// Local Claude Code stats only.
     case off
@@ -78,9 +78,6 @@ final class AppModel {
     var menuBarStyle: MenuBarStyle {
         didSet { defaults.set(menuBarStyle.rawValue, forKey: "menuBarStyle") }
     }
-    var credentialMethod: CredentialMethod {
-        didSet { defaults.set(credentialMethod.rawValue, forKey: "credentialMethod"); credentials = nil }
-    }
     var launchAtLogin: Bool {
         didSet {
             guard !isPreview, launchAtLogin != (SMAppService.mainApp.status == .enabled) else { return }
@@ -110,7 +107,7 @@ final class AppModel {
         limitsSource = LimitsSource(rawValue: defaults.string(forKey: "limitsSource") ?? "")
         refreshInterval = defaults.object(forKey: "refreshInterval") as? Double ?? 180
         menuBarStyle = MenuBarStyle(rawValue: defaults.string(forKey: "menuBarStyle") ?? "") ?? .ringAndPercent
-        credentialMethod = CredentialMethod(rawValue: defaults.string(forKey: "credentialMethod") ?? "") ?? .keychain
+        defaults.removeObject(forKey: "credentialMethod")     // setting removed in 1.1
         launchAtLogin = SMAppService.mainApp.status == .enabled
         bridgeState = StatusLineBridge.state
         updateModelColors()
@@ -138,7 +135,6 @@ final class AppModel {
         limitsSource = .direct
         refreshInterval = 180
         menuBarStyle = .ringAndPercent
-        credentialMethod = .keychain
         launchAtLogin = false
         bridgeState = .installed
         updateModelColors(persist: false)
@@ -288,7 +284,7 @@ final class AppModel {
         } catch CredentialError.notFound {
             report(.notLoggedIn, "No Claude Code login found. Run `claude` and sign in, then refresh.")
         } catch CredentialError.denied {
-            report(.keychainDenied, "Keychain access was denied. Click Grant Access and choose “Always Allow”.")
+            report(.keychainDenied, "macOS didn't allow reading the Claude Code login. Click Retry, and allow access if asked.")
         } catch CredentialError.expired {
             report(.tokenExpired, "Your Claude Code login has expired. Use Claude Code once to renew it.")
         } catch CredentialError.unreadable(let why) {
@@ -319,12 +315,11 @@ final class AppModel {
         snapshot.limits.issue = .init(kind: kind, message: message)
     }
 
-    /// Reads the keychain only when needed: on first use, after the token expires, or after a 401.
+    /// Reads the login only when needed: on first use, after the token expires, or after a 401.
     private func currentCredentials() async throws -> ClaudeCredentials {
         if let credentials, !credentials.isExpired { return credentials }
-        let method = credentialMethod
         let fresh = try await Task.detached(priority: .userInitiated) {
-            try CredentialReader.read(method: method)
+            try CredentialReader.read()
         }.value
         guard !fresh.isExpired else { throw CredentialError.expired }
         credentials = fresh

@@ -1,16 +1,4 @@
 import Foundation
-import Security
-
-/// How the app reads Claude Code's login from the keychain.
-enum CredentialMethod: String, CaseIterable, Identifiable {
-    /// Apple's Keychain API. macOS asks once; choose "Always Allow".
-    case keychain
-    /// `/usr/bin/security`, which Claude Code itself uses to store the item — usually no prompt.
-    case securityTool
-
-    var id: String { rawValue }
-    var label: String { self == .keychain ? "macOS Keychain" : "security tool" }
-}
 
 struct ClaudeCredentials {
     var accessToken: String
@@ -39,14 +27,18 @@ enum CredentialError: Error {
 }
 
 /// Reads — never writes or refreshes — the OAuth login Claude Code keeps in the keychain.
+///
+/// It goes through `/usr/bin/security`, the same tool Claude Code uses to save the login. The keychain
+/// entry trusts that tool, so there's no prompt — including after Claude Code renews the token, which
+/// would reset an "Always Allow" given to this app directly.
 /// Refreshing is left to Claude Code: doing it here would rotate the refresh token and log Claude Code out.
 enum CredentialReader {
     static let service = "Claude Code-credentials"
 
-    static func read(method: CredentialMethod) throws -> ClaudeCredentials {
+    static func read() throws -> ClaudeCredentials {
         let data: Data
         do {
-            data = try method == .keychain ? readKeychain() : readSecurityTool()
+            data = try readSecurityTool()
         } catch CredentialError.notFound {
             // Some setups (e.g. CLAUDE_CONFIG_DIR / older versions) keep a plain file instead.
             let file = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json")
@@ -54,29 +46,6 @@ enum CredentialReader {
             data = fileData
         }
         return try parse(data)
-    }
-
-    private static func readKeychain() throws -> Data {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        switch status {
-        case errSecSuccess:
-            guard let data = result as? Data else { throw CredentialError.unreadable("Empty keychain item") }
-            return data
-        case errSecItemNotFound:
-            throw CredentialError.notFound
-        case errSecUserCanceled, errSecAuthFailed, errSecInteractionNotAllowed:
-            throw CredentialError.denied
-        default:
-            let msg = SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)"
-            throw CredentialError.unreadable("Keychain: \(msg)")
-        }
     }
 
     private static func readSecurityTool() throws -> Data {

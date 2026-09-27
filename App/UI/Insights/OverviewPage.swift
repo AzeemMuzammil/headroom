@@ -368,7 +368,7 @@ private struct IssueCard: View {
             Text(issue.message).font(.system(size: 12))
             Spacer()
             if issue.kind == .keychainDenied {
-                Button("Grant Access") { Task { await model.refresh(force: true) } }
+                Button("Retry") { Task { await model.refresh(force: true) } }
             } else if issue.kind == .apiChanged {
                 Button("Copy API Response") { model.copyLastResponse() }
             } else if issue.kind == .setupNeeded {
