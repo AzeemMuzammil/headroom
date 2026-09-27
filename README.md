@@ -61,17 +61,19 @@ On first launch Headroom asks how to get your plan limits:
 
 <p align="center"><img src="docs/setup-light.png" width="620" alt="First-launch setup"></p>
 
-| | **Through Claude Code** (recommended) | **Direct** |
+| | **Direct** (default) | **Through Claude Code** |
 |---|---|---|
-| How | Claude Code passes your limits to Headroom's helper through its [status line](https://code.claude.com/docs/en/statusline) | Headroom reads Claude Code's saved login from your keychain and calls Anthropic's usage endpoint |
-| Limits | 5-hour session and weekly | Session, weekly, model-specific (e.g. Fable) and the weekly breakdown by product |
-| Updates | While you're using Claude Code | Every few minutes, even with Claude Code closed |
-| Touches your login | No | Yes (read-only, kept in memory only) |
-| Network | None | One request to `api.anthropic.com` per refresh |
-| Setup | Adds a `statusLine` entry to `~/.claude/settings.json` (a backup is saved) | macOS asks once for keychain access; choose **Always Allow** |
+| How | Headroom reads Claude Code's saved login with macOS's `security` tool and calls Anthropic's usage endpoint | Claude Code passes your limits to Headroom's helper through its [status line](https://code.claude.com/docs/en/statusline) |
+| Limits | Session, weekly, model-specific (e.g. Fable), the weekly breakdown by product, and your plan | 5-hour session and weekly |
+| Updates | Every few minutes, even with Claude Code closed | While you're using Claude Code |
+| Touches your login | Yes (read-only, kept in memory only) | No |
+| Network | One request to `api.anthropic.com` per refresh | None |
+| Setup | Nothing. No keychain prompts (see below) | Adds a `statusLine` entry to `~/.claude/settings.json` (a backup is saved) |
+
+**Why no keychain prompts:** Claude Code saves its login in the keychain entry "Claude Code-credentials" using `/usr/bin/security`, the keychain tool built into macOS, and the entry trusts that tool. Headroom reads the login through the same tool, so macOS doesn't ask, even after Claude Code renews the token. (An "Always Allow" given to an app directly is reset every time Claude Code renews, which is why Headroom doesn't read the keychain directly.)
 
 > [!WARNING]
-> **About Direct mode.** Anthropic's [terms for Claude Code](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use) say OAuth logins are meant for Claude Code and Anthropic's own apps, and that third-party developers may not collect, store or intermediate them. Direct mode reads your own login locally and never stores or shares it, but it still uses that login outside Claude Code, and the endpoint is undocumented and may change or be restricted at any time. **Use it at your own risk.** "Through Claude Code" avoids this entirely.
+> **About Direct mode.** Anthropic's [terms for Claude Code](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use) say OAuth logins are meant for Claude Code and Anthropic's own apps, and that third-party developers may not collect, store or intermediate them. Direct mode reads your own login locally and never stores or shares it, but it still uses that login outside Claude Code, and the endpoint is undocumented and may change or be restricted at any time. **Use it at your own risk.** "Through Claude Code" avoids this entirely, with less data.
 
 You can switch modes, or turn plan limits off, at any time in **Settings**.
 
@@ -98,7 +100,7 @@ security find-identity -v -p codesigning      # shows your certificate name and 
 # edit Config/Local.xcconfig with your team ID, certificate name and bundle ID
 ```
 
-This matters for Direct mode: with ad-hoc signing each rebuild changes the app's signature, so macOS asks for keychain access again. `Config/Local.xcconfig` is gitignored.
+`Config/Local.xcconfig` is gitignored.
 
 ## Privacy
 
@@ -129,7 +131,7 @@ App/
   Services/
     StatusLineBridge.swift  "Through Claude Code": installs the status line helper, reads its data
     UsageAPI.swift          Direct mode: the usage endpoint (the only file to update if it changes)
-    Credentials.swift       Direct mode: read-only keychain access
+    Credentials.swift       Direct mode: reads Claude Code's login via /usr/bin/security (read-only)
     LogScanner.swift        Incremental, cached parser for Claude Code logs
     Pricing.swift           API list prices for cost estimates
   Model/                    Models, AppModel (refresh loop, history), sample data
@@ -148,7 +150,7 @@ To work in Xcode: `xcodegen generate && open Headroom.xcodeproj`.
 ```sh
 Headroom --dump-local                    # print local totals per range and exit
 Headroom --render-preview <dir>          # render every screen (light and dark) with sample data
-Headroom --demo                          # run the app on sample data (no keychain, no network)
+Headroom --demo                          # run the app on sample data (no login, no network)
 swift scripts/make_icon.swift            # regenerate the app icon
 ```
 

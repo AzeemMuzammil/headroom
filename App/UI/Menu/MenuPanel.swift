@@ -241,7 +241,7 @@ private struct IssueRow: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             if issue.kind == .keychainDenied {
-                Button("Grant") { Task { await model.refresh(force: true) } }
+                Button("Retry") { Task { await model.refresh(force: true) } }
                     .controlSize(.small)
             } else if issue.kind == .setupNeeded {
                 Button("Set Up", action: openSettings)
