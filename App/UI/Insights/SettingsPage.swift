@@ -54,7 +54,7 @@ struct SettingsPage: View {
                     case .claudeCode:
                         Text("Claude Code passes your session and weekly limits to Headroom's helper through its status line (~/.claude/settings.json). Your previous status line, if any, keeps working and comes back if you disconnect. Nothing leaves your Mac.")
                     case .direct:
-                        Text("Reads Claude Code's saved login with macOS's `security` tool — the same tool Claude Code saves it with, so there's no keychain prompt — and calls Anthropic's undocumented usage endpoint. The token is only sent to api.anthropic.com and never stored. Anthropic's terms say third-party apps shouldn't use Claude Code's login — use at your own risk.")
+                        Text("Reads Claude Code's saved login with macOS's `security` tool (usually no keychain prompt) and calls Anthropic's undocumented usage endpoint. The token is only sent to api.anthropic.com and never stored. Anthropic's terms say third-party apps shouldn't use Claude Code's login, so use it at your own risk.")
                     case .off:
                         Text("Plan limits are off. Local Claude Code stats still work.")
                     }

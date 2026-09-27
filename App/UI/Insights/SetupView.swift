@@ -25,7 +25,7 @@ struct SetupView: View {
                     title: "Direct",
                     badge: "Default",
                     points: [
-                        "Reads Claude Code's saved login with macOS's security tool and asks Anthropic for your limits. No keychain prompts.",
+                        "Reads Claude Code's saved login with macOS's security tool (usually no keychain prompt) and asks Anthropic for your limits.",
                         "Shows everything: session, weekly and model-specific limits, the weekly breakdown and your plan.",
                         "Updates every few minutes, even when Claude Code is closed.",
                     ],
@@ -43,7 +43,7 @@ struct SetupView: View {
                     points: [
                         "Claude Code passes your session and weekly limits to Headroom through its status line.",
                         "Never touches your login and sends nothing over the network.",
-                        "Updates while you use Claude Code. No model-specific limits or weekly breakdown.",
+                        "Updates while you use Claude Code. No model-specific limits, weekly breakdown or plan name.",
                         "Adds a status line entry to ~/.claude/settings.json. An existing status line keeps working, and a backup is saved.",
                     ],
                     warning: nil,
