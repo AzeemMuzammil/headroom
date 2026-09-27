@@ -107,7 +107,6 @@ final class AppModel {
         limitsSource = LimitsSource(rawValue: defaults.string(forKey: "limitsSource") ?? "")
         refreshInterval = defaults.object(forKey: "refreshInterval") as? Double ?? 180
         menuBarStyle = MenuBarStyle(rawValue: defaults.string(forKey: "menuBarStyle") ?? "") ?? .ringAndPercent
-        defaults.removeObject(forKey: "credentialMethod")     // setting removed in 1.1
         launchAtLogin = SMAppService.mainApp.status == .enabled
         bridgeState = StatusLineBridge.state
         updateModelColors()
@@ -127,7 +126,7 @@ final class AppModel {
         }
     }
 
-    /// A static model for previews and screenshots; never touches the keychain, network or disk.
+    /// A static model for previews and screenshots; never touches the login, network or disk.
     init(preview: UsageSnapshot, history: [LimitSample]) {
         isPreview = true
         snapshot = preview
@@ -170,7 +169,7 @@ final class AppModel {
     func refresh(force: Bool = false) async {
         guard !isPreview else { return }
         guard !isRefreshing else {
-            // Don't drop a user's "Refresh Now" / "Grant Access": run it once this one finishes.
+            // Don't drop a user's "Refresh Now" / "Retry": run it once this one finishes.
             if force { pendingForcedRefresh = true }
             return
         }
@@ -179,7 +178,6 @@ final class AppModel {
         await refreshLimits(force: force)
         snapshot.local = await local
         updateModelColors()
-        snapshot.updatedAt = Date()
         clock = Date()
         Store.save(snapshot, "snapshot.json")
         isRefreshing = false
@@ -285,6 +283,8 @@ final class AppModel {
             report(.notLoggedIn, "No Claude Code login found. Run `claude` and sign in, then refresh.")
         } catch CredentialError.denied {
             report(.keychainDenied, "macOS didn't allow reading the Claude Code login. Click Retry, and allow access if asked.")
+        } catch CredentialError.timedOut {
+            report(.keychainDenied, "Reading the Claude Code login timed out — macOS may be waiting for you to unlock the keychain. Click Retry.")
         } catch CredentialError.expired {
             report(.tokenExpired, "Your Claude Code login has expired. Use Claude Code once to renew it.")
         } catch CredentialError.unreadable(let why) {
@@ -302,7 +302,7 @@ final class AppModel {
             report(.rateLimited, "The usage service asked us to slow down. Retrying in \(Fmt.duration(wait)).")
         } catch UsageAPIError.apiChanged(let why) {
             report(.apiChanged, "The usage API changed (\(why)). The app needs an update.")
-        } catch UsageAPIError.http(let code, _) {
+        } catch UsageAPIError.http(let code) {
             report(.network, "The usage service returned HTTP \(code).")
         } catch UsageAPIError.network(let why) {
             report(.network, "Couldn't reach Claude: \(why)")

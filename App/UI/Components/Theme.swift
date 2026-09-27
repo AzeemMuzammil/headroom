@@ -38,7 +38,6 @@ enum Theme {
 
     // Status — reserved for state, always paired with an icon + label.
     static let warning = Color(hex: 0xFAB219)
-    static let serious = Color(hex: 0xEC835A)
     static let critical = Color(hex: 0xD03B3B)
     static let good = Color(hex: 0x0CA30C)
 

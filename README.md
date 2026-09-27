@@ -68,9 +68,9 @@ On first launch Headroom asks how to get your plan limits:
 | Updates | Every few minutes, even with Claude Code closed | While you're using Claude Code |
 | Touches your login | Yes (read-only, kept in memory only) | No |
 | Network | One request to `api.anthropic.com` per refresh | None |
-| Setup | Nothing. No keychain prompts (see below) | Adds a `statusLine` entry to `~/.claude/settings.json` (a backup is saved) |
+| Setup | Nothing. Usually no keychain prompts (see below) | Adds a `statusLine` entry to `~/.claude/settings.json` (a backup is saved) |
 
-**Why no keychain prompts:** Claude Code saves its login in the keychain entry "Claude Code-credentials" using `/usr/bin/security`, the keychain tool built into macOS, and the entry trusts that tool. Headroom reads the login through the same tool, so macOS doesn't ask, even after Claude Code renews the token. (An "Always Allow" given to an app directly is reset every time Claude Code renews, which is why Headroom doesn't read the keychain directly.)
+**Why no keychain prompts:** Claude Code saves its login in the keychain entry "Claude Code-credentials" using `/usr/bin/security`, the keychain tool built into macOS, and the entry trusts that tool. Headroom reads the login through the same tool, so macOS usually doesn't ask, even after Claude Code renews the token. It can still ask if your keychain is locked. (An "Always Allow" given to an app directly is reset every time Claude Code renews, which is why Headroom doesn't read the keychain directly.)
 
 > [!WARNING]
 > **About Direct mode.** Anthropic's [terms for Claude Code](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use) say OAuth logins are meant for Claude Code and Anthropic's own apps, and that third-party developers may not collect, store or intermediate them. Direct mode reads your own login locally and never stores or shares it, but it still uses that login outside Claude Code, and the endpoint is undocumented and may change or be restricted at any time. **Use it at your own risk.** "Through Claude Code" avoids this entirely, with less data.
@@ -92,15 +92,13 @@ Claude Code only includes limits in its status line data for Pro and Max subscri
 
 ### Signing (optional)
 
-By default the app is **ad-hoc signed**, so it builds with no Apple account. To sign with your own Apple Development certificate:
+By default the app is **ad-hoc signed**, so it builds with no Apple account. To sign with your own Apple Development certificate (`Config/Local.xcconfig` is gitignored):
 
 ```sh
 cp Config/Local.xcconfig.example Config/Local.xcconfig
 security find-identity -v -p codesigning      # shows your certificate name and team ID
 # edit Config/Local.xcconfig with your team ID, certificate name and bundle ID
 ```
-
-`Config/Local.xcconfig` is gitignored.
 
 ## Privacy
 

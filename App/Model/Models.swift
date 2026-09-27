@@ -228,5 +228,4 @@ extension LocalStats {
 struct UsageSnapshot: Codable, Hashable {
     var limits = LimitsState()
     var local: LocalStats?
-    var updatedAt = Date()
 }

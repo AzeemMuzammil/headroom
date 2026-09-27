@@ -1,9 +1,8 @@
 // Signing and identity.
 //
 // The defaults build an ad-hoc signed app that runs on your own Mac with no Apple account.
-// To sign with your Apple Development certificate instead (recommended: macOS then remembers
-// the keychain "Always Allow" across rebuilds), copy Local.xcconfig.example to Local.xcconfig
-// in this folder and fill it in. Local.xcconfig is gitignored.
+// To sign with your own Apple Development certificate instead, copy Local.xcconfig.example to
+// Local.xcconfig in this folder and fill it in. Local.xcconfig is gitignored.
 
 PRODUCT_BUNDLE_IDENTIFIER = com.example.Headroom
 CODE_SIGN_STYLE = Manual

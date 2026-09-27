@@ -8,7 +8,7 @@ enum UsageAPIError: Error {
     case unauthorized
     case forbidden
     case rateLimited(retryAfter: TimeInterval?)
-    case http(Int, String)
+    case http(Int)
     case network(String)
     case apiChanged(String)
 }
@@ -21,6 +21,7 @@ struct ParsedUsage {
 enum UsageAPI {
     static let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
     static let betaHeader = "oauth-2025-04-20"
+    private static let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
 
     /// A dedicated session that never persists anything: the default `URLSession.shared` keeps an
     /// on-disk URLCache, which would store the request — Authorization header included.
@@ -40,7 +41,7 @@ enum UsageAPI {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(betaHeader, forHTTPHeaderField: "anthropic-beta")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Headroom/1.0 (+https://github.com/AzeemMuzammil/headroom)", forHTTPHeaderField: "User-Agent")
+        request.setValue("Headroom/\(appVersion) (+https://github.com/AzeemMuzammil/headroom)", forHTTPHeaderField: "User-Agent")
 
         let data: Data, response: URLResponse
         do {
@@ -59,7 +60,7 @@ enum UsageAPI {
                 .flatMap(TimeInterval.init).flatMap { $0.isFinite ? min(max($0, 60), 3600) : nil }
             throw UsageAPIError.rateLimited(retryAfter: retry)
         case 404, 410: throw UsageAPIError.apiChanged("Endpoint returned \(status)")
-        default: throw UsageAPIError.http(status, String(decoding: data.prefix(300), as: UTF8.self))
+        default: throw UsageAPIError.http(status)
         }
     }
 

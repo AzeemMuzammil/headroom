@@ -22,25 +22,30 @@ struct ClaudeCredentials {
 enum CredentialError: Error {
     case notFound
     case denied
+    case timedOut
     case expired
     case unreadable(String)
 }
 
 /// Reads — never writes or refreshes — the OAuth login Claude Code keeps in the keychain.
-///
-/// It goes through `/usr/bin/security`, the same tool Claude Code uses to save the login. The keychain
-/// entry trusts that tool, so there's no prompt — including after Claude Code renews the token, which
-/// would reset an "Always Allow" given to this app directly.
 /// Refreshing is left to Claude Code: doing it here would rotate the refresh token and log Claude Code out.
+///
+/// It reads through `/usr/bin/security`, the tool Claude Code saves the login with. The keychain entry
+/// trusts that tool, so there's usually no prompt, even after Claude Code renews the token (which resets
+/// any "Always Allow" given to an app directly).
 enum CredentialReader {
     static let service = "Claude Code-credentials"
+
+    /// How long to wait for `security`. It only takes long when macOS shows a dialog (e.g. the keychain
+    /// is locked); without a limit, an unanswered dialog would stall every refresh.
+    private static let timeout: TimeInterval = 60
 
     static func read() throws -> ClaudeCredentials {
         let data: Data
         do {
             data = try readSecurityTool()
         } catch CredentialError.notFound {
-            // Some setups (e.g. CLAUDE_CONFIG_DIR / older versions) keep a plain file instead.
+            // Some setups (e.g. older Claude Code versions) keep a plain file instead.
             let file = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json")
             guard let fileData = try? Data(contentsOf: file) else { throw CredentialError.notFound }
             data = fileData
@@ -55,11 +60,19 @@ enum CredentialReader {
         let out = Pipe()
         process.standardOutput = out
         process.standardError = FileHandle.nullDevice
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            throw CredentialError.unreadable("Couldn't run security: \(error.localizedDescription)")
+        }
+        let deadline = DispatchWorkItem { if process.isRunning { process.terminate() } }
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: deadline)
         let data = out.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
+        deadline.cancel()
+        if process.terminationReason == .uncaughtSignal { throw CredentialError.timedOut }
         switch process.terminationStatus {
-        case 0: return Data(String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).utf8)
+        case 0: return data
         case 44: throw CredentialError.notFound          // errSecItemNotFound
         case 128, 51, 36: throw CredentialError.denied   // cancelled / auth failed / interaction not allowed
         default: throw CredentialError.unreadable("security exited with \(process.terminationStatus)")
