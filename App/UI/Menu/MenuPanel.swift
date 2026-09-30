@@ -34,7 +34,7 @@ struct MenuPanel: View {
         HStack(spacing: 9) {
             AppMark(size: 22, spinning: model.isRefreshing)
             Text("Headroom").font(.system(size: 14, weight: .semibold))
-            if let plan = model.limits.plan {
+            if let plan = model.planName {
                 PlanBadge(plan: plan)
             }
             Spacer()

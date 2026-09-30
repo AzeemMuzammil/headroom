@@ -68,32 +68,72 @@ struct InsightsPageContent: View {
     }
 }
 
+/// The signed-in Claude account and refresh status, pinned to the bottom of the sidebar.
 private struct SidebarStatus: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        HStack(spacing: 10) {
-            AppMark(size: 28, spinning: model.isRefreshing)
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 5) {
-                    Text("Headroom").font(.system(size: 12, weight: .semibold))
-                    if let plan = model.limits.plan { PlanBadge(plan: plan) }
-                }
-                TimelineView(.periodic(from: .now, by: 5)) { context in
-                    let issue = model.limits.issue
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(issue == nil ? Theme.good : issue!.isInformational ? Theme.neutral : Theme.warning)
-                            .frame(width: 6, height: 6)
-                        Text(issue == nil ? "Updated \(Fmt.ago(model.lastUpdated, now: context.date))"
-                             : issue!.isInformational ? "Waiting for Claude Code" : "Limits need attention")
+        VStack(alignment: .leading, spacing: 8) {
+            if let account = model.account {
+                HStack(spacing: 10) {
+                    AccountAvatar(account: account, size: 32)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(account.title)
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if let subtitle = account.subtitle {
+                            Text(subtitle)
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
                     }
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
                 }
+                .help([account.name, account.email, account.organization].compactMap { $0 }.joined(separator: "\n"))
             }
-            Spacer(minLength: 0)
+
+            if let plan = model.planName { PlanBadge(plan: plan) }
+
+            TimelineView(.periodic(from: .now, by: 5)) { context in
+                let issue = model.limits.issue
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(issue == nil ? Theme.good : issue!.isInformational ? Theme.neutral : Theme.warning)
+                        .frame(width: 6, height: 6)
+                    Text(model.isRefreshing ? "Refreshing…"
+                         : issue == nil ? "Updated \(Fmt.ago(model.lastUpdated, now: context.date))"
+                         : issue!.isInformational ? "Waiting for Claude Code" : "Limits need attention")
+                        .lineLimit(1)
+                }
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+            }
         }
+    }
+}
+
+/// Initials on the brand gradient; a person icon when there are none.
+struct AccountAvatar: View {
+    var account: ClaudeAccount
+    var size: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle().fill(LinearGradient(colors: [Theme.brandLight, Theme.brandDeep], startPoint: .topLeading, endPoint: .bottomTrailing))
+            if !account.initials.isEmpty {
+                Text(account.initials)
+                    .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+            } else {
+                Image(systemName: "person.fill")
+                    .font(.system(size: size * 0.42))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+        }
+        .frame(width: size, height: size)
     }
 }
 

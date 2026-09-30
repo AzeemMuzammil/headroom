@@ -7,6 +7,34 @@ struct SettingsPage: View {
         @Bindable var model = model
         Form {
             Section {
+                if let account = model.account {
+                    HStack(spacing: 12) {
+                        AccountAvatar(account: account, size: 36)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(account.title).font(.system(size: 13, weight: .semibold))
+                            if let subtitle = account.subtitle {
+                                Text(subtitle).font(.system(size: 11.5)).foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        if let plan = model.planName { PlanBadge(plan: plan) }
+                    }
+                    if let organization = account.organization {
+                        LabeledContent("Organization", value: organization)
+                    }
+                } else {
+                    Text("No Claude account found in Claude Code's settings. If you use Claude Code with an API key, there's no account to show.")
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Account")
+            } footer: {
+                Text("The account Claude Code is signed in to, read from ~/.claude.json. To switch accounts, run /login in Claude Code.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Picker("Refresh every", selection: $model.refreshInterval) {
                     Text("1 minute").tag(60.0)
                     Text("3 minutes").tag(180.0)

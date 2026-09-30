@@ -54,7 +54,7 @@ struct OverviewPage: View {
 
     private func headerSubtitle(now: Date) -> String {
         var parts: [String] = []
-        if let plan = model.limits.plan { parts.append("\(plan) plan") }
+        if let plan = model.planName { parts.append("\(plan) plan") }
         parts.append("updated \(Fmt.ago(model.lastUpdated, now: now))")
         return parts.joined(separator: " · ")
     }
