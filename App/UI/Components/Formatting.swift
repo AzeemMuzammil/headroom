@@ -78,6 +78,18 @@ enum Fmt {
         return "\(days) days ago"
     }
 
+    /// Plan display name: ("max" or "claude_max", "default_claude_max_5x") → "Max 5×".
+    static func planName(type: String, tier: String?) -> String? {
+        var base = type.lowercased()
+        if base.hasPrefix("claude_") { base.removeFirst("claude_".count) }
+        guard !base.isEmpty else { return nil }
+        var name = base.replacingOccurrences(of: "_", with: " ").capitalized
+        if let tier = tier?.lowercased(), let r = tier.range(of: #"(\d+)x"#, options: .regularExpression) {
+            name += " " + tier[r].dropLast() + "×"
+        }
+        return name
+    }
+
     /// "claude-opus-5-5" → "Opus 5.5", "claude-sonnet-4-5-20250929" → "Sonnet 4.5", "claude-3-5-haiku-20241022" → "Haiku 3.5"
     static func modelName(_ id: String) -> String {
         let families = ["opus", "sonnet", "haiku", "fable", "mythos"]

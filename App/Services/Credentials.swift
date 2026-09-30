@@ -10,12 +10,7 @@ struct ClaudeCredentials {
 
     /// "Max 20×", "Max 5×", "Pro", "Team"…
     var planName: String? {
-        guard let sub = subscriptionType?.lowercased(), !sub.isEmpty else { return nil }
-        var name = sub.capitalized
-        if let tier = rateLimitTier?.lowercased(), let r = tier.range(of: #"(\d+)x"#, options: .regularExpression) {
-            name += " " + tier[r].dropLast() + "×"
-        }
-        return name
+        subscriptionType.flatMap { Fmt.planName(type: $0, tier: rateLimitTier) }
     }
 }
 

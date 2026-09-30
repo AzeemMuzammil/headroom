@@ -35,7 +35,8 @@
 - **Overview:** limit rings; burn-down charts for the session and the week showing usage, an even-pace line and a forecast to the reset; how your week split across Claude products (Direct mode only).
 - **Activity** (Today / 7 days / 30 days): tokens, API-equivalent cost, replies and cache-hit rate, each with the change vs the previous period; tokens by day stacked by model; a weekday × hour heatmap; model share; token mix and what prompt caching saved.
 - **Projects:** your most active projects and a sortable table.
-- **Settings:** limits source, refresh interval, menu bar style, launch at login.
+- **Settings:** your account, limits source, refresh interval, menu bar style, launch at login.
+- **Account:** the sidebar shows which Claude account Claude Code is signed in to (name, email and plan; the organization too for Team and Enterprise).
 
 Works in light and dark mode. Chart colors come from a palette checked for colorblind readability, and warnings always show an icon and a label, not just a color.
 
@@ -106,6 +107,7 @@ security find-identity -v -p codesigning      # shows your certificate name and 
 - **Local stats** come from Claude Code's logs in `~/.claude/projects/**/*.jsonl` (also `~/.config/claude/projects`, and `$CLAUDE_CONFIG_DIR/projects` when Headroom is launched from a shell that has it set). They never leave your Mac.
 - **Network:** "Through Claude Code" makes no network requests. Direct mode sends one request per refresh to `api.anthropic.com`, with no cache and no redirects.
 - **Your login:** only Direct mode reads it. It's kept in memory only and never written to disk.
+- **Your account:** your name, email, plan and (for Team and Enterprise) organization are read from Claude Code's `~/.claude.json` (or `$CLAUDE_CONFIG_DIR/.claude.json`) to show who's signed in. They're never stored or sent anywhere.
 - **What's stored** in `~/Library/Application Support/Headroom/`:
 
   | File | Contains |

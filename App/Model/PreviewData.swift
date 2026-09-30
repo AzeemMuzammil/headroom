@@ -5,7 +5,8 @@ enum PreviewData {
     @MainActor
     static func model(now: Date = Date()) -> AppModel {
         let (snapshot, history) = make(now: now)
-        return AppModel(preview: snapshot, history: history)
+        let account = ClaudeAccount(name: "Alex Rivera", email: "alex@example.com", organization: nil, plan: "Max 20×")
+        return AppModel(preview: snapshot, history: history, account: account)
     }
 
     static func make(now: Date) -> (UsageSnapshot, [LimitSample]) {
@@ -74,7 +75,7 @@ enum PreviewData {
             if total == 0 { stat.models = [:]; stat.projects = [:] }
             return stat
         }
-        snapshot.local = LocalStats(days: days, scannedAt: now, filesScanned: 418)
+        snapshot.local = LocalStats(days: days, scannedAt: now, filesScanned: 418, coverageStart: days.first?.day)
         return (snapshot, history)
     }
 }

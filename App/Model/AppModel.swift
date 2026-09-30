@@ -59,6 +59,8 @@ final class AppModel {
     /// Ticks every few seconds so countdowns and expired windows update without a refresh.
     private(set) var clock = Date()
     private(set) var bridgeState: StatusLineBridge.State = .notInstalled
+    /// The account Claude Code is signed in to (read locally; never stored).
+    private(set) var account: ClaudeAccount?
     var bridgeError: String?
 
     var limitsSource: LimitsSource? {
@@ -97,6 +99,7 @@ final class AppModel {
     @ObservationIgnored private var backoffUntil: Date?
     @ObservationIgnored private var pendingForcedRefresh = false
     @ObservationIgnored private var bridgeFileDate: Date?
+    @ObservationIgnored private var accountFileDate: Date?
     @ObservationIgnored private let isPreview: Bool
 
     init() {
@@ -109,6 +112,8 @@ final class AppModel {
         menuBarStyle = MenuBarStyle(rawValue: defaults.string(forKey: "menuBarStyle") ?? "") ?? .ringAndPercent
         launchAtLogin = SMAppService.mainApp.status == .enabled
         bridgeState = StatusLineBridge.state
+        account = try? AccountReader.read()
+        accountFileDate = AccountReader.lastModified
         updateModelColors()
         restartLoop()
         startTicker()
@@ -127,10 +132,11 @@ final class AppModel {
     }
 
     /// A static model for previews and screenshots; never touches the login, network or disk.
-    init(preview: UsageSnapshot, history: [LimitSample]) {
+    init(preview: UsageSnapshot, history: [LimitSample], account: ClaudeAccount? = nil) {
         isPreview = true
         snapshot = preview
         self.history = history
+        self.account = account
         limitsSource = .direct
         refreshInterval = 180
         menuBarStyle = .ringAndPercent
@@ -158,6 +164,7 @@ final class AppModel {
                 try? await Task.sleep(for: .seconds(10))
                 guard let self else { return }
                 self.clock = Date()
+                await self.reloadAccountIfChanged()
                 if self.limitsSource == .claudeCode, StatusLineBridge.lastModified != self.bridgeFileDate {
                     self.readBridge()
                     Store.save(self.snapshot, "snapshot.json")
@@ -175,6 +182,7 @@ final class AppModel {
         }
         isRefreshing = true
         async let local = scanner.scan()
+        await reloadAccountIfChanged()
         await refreshLimits(force: force)
         snapshot.local = await local
         updateModelColors()
@@ -205,6 +213,22 @@ final class AppModel {
             readBridge()
         case .direct:
             await fetchDirect(force: force)
+        }
+    }
+
+    // MARK: Account
+
+    /// Re-reads the signed-in account when Claude Code's config file changes (e.g. after `/login`).
+    /// Parsed off the main thread; a failed read (e.g. mid-write) keeps the last good value.
+    private func reloadAccountIfChanged() async {
+        let modified = AccountReader.lastModified
+        guard modified != accountFileDate else { return }
+        do {
+            let fresh = try await Task.detached(priority: .utility) { try AccountReader.read() }.value
+            accountFileDate = modified
+            if fresh != account { account = fresh }
+        } catch {
+            // Try again on the next tick.
         }
     }
 
@@ -358,6 +382,8 @@ final class AppModel {
     /// Plan limits as of now: windows whose reset time has passed show as reset.
     var limits: LimitsState { snapshot.limits.current(at: clock) }
     var needsSetup: Bool { limitsSource == nil }
+    /// From Claude Code's login in Direct mode, otherwise from its account info in ~/.claude.json.
+    var planName: String? { limits.plan ?? account?.plan }
 
     var summary: PeriodSummary? { snapshot.local?.summary(range) }
     var previousSummary: PeriodSummary? { snapshot.local?.summary(range, periodsAgo: 1) }
